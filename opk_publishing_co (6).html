@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OPK Publishing Co</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col justify-between">
+
+    <!-- Custom Modal for Notifications / Auth Prompt -->
+    <div id="customModal" class="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl animate-fade">
+            <div class="flex items-center space-x-3 mb-4">
+                <div id="modalIconContainer" class="w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xl">
+                    <i id="modalIcon" class="fa-solid fa-info"></i>
+                </div>
+                <div>
+                    <h3 id="modalTitle" class="text-lg font-bold text-slate-900">Notification</h3>
+                    <p class="text-xs text-slate-500">OPK Secure Publisher Portal</p>
+                </div>
+            </div>
+            <p id="modalMessage" class="text-slate-600 text-sm mb-6 leading-relaxed">Message goes here...</p>
+            <div id="modalContentContainer" class="mb-6"></div>
+            <div class="flex justify-end space-x-3" id="modalButtons">
+                <button onclick="closeModal()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-xs transition">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header / Navbar -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="resetFilter()">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 to-indigo-800 flex items-center justify-center text-white shadow-md shadow-blue-200">
+                    <i class="fa-solid fa-book-open text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-slate-900 leading-tight">OPK Publishing Co</h1>
+                    <p class="text-xs text-slate-500">Official Publications & Resources</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <div class="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-semibold border border-emerald-200" title="Coast-to-Coast Realtime Cloud Sync">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                    <span>Coast-to-Coast Sync Live</span>
+                </div>
+
+                <div id="authNavArea" class="flex items-center">
+                    <!-- Populated dynamically: Blue Key Button or Owner Logout -->
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full">
+        
+        <!-- Welcome Banner / Hero -->
+        <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 rounded-3xl p-6 sm:p-10 text-white shadow-xl mb-8 relative overflow-hidden">
+            <div class="absolute -right-10 -bottom-10 w-64 h-64 rounded-full bg-white/5 blur-2xl pointer-events-none"></div>
+            <div class="max-w-2xl relative z-10">
+                <span id="roleBadge" class="inline-block px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-semibold uppercase tracking-wider text-blue-200 mb-3 border border-white/10">
+                    Public Visitor Library
+                </span>
+                <h2 class="text-2xl sm:text-4xl font-extrabold tracking-tight mb-3">Publications & Media Catalog</h2>
+                <p class="text-slate-300 text-sm sm:text-base leading-relaxed mb-6">
+                    Browse and download official publications, press releases, digital books, and high-resolution media published by OPK Publishing Co. Synchronized instantly coast-to-coast.
+                </p>
+                
+                <div class="flex flex-wrap gap-3 items-center">
+                    <div class="relative flex-grow sm:flex-grow-0 min-w-[240px]">
+                        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                        </span>
+                        <input type="text" id="searchInput" oninput="filterResources()" placeholder="Search publications by title or tag..." class="w-full pl-10 pr-4 py-2.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl text-white placeholder-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-white/50 transition">
+                    </div>
+                    <div class="flex rounded-xl bg-white/10 backdrop-blur-md p-1 border border-white/20">
+                        <button onclick="setCategoryFilter('all')" id="cat-all" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/20 text-white transition">All</button>
+                        <button onclick="setCategoryFilter('pdf')" id="cat-pdf" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white transition">PDFs</button>
+                        <button onclick="setCategoryFilter('image')" id="cat-image" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white transition">Images</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Owner Upload Panel (Conditionally Visible) -->
+        <div id="ownerUploadPanel" class="hidden mb-10 bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm animate-fade">
+            <div class="flex items-center justify-between mb-6 pb-4 border-b border-slate-100 flex-wrap gap-4">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-lg">OPK Publisher Console</h3>
+                        <p class="text-xs text-slate-500">Upload PDF documents or cover art pictures. Instantly syncs across all devices nationwide.</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg border border-blue-100">Owner Mode Active</span>
+                </div>
+            </div>
+
+            <form id="uploadForm" onsubmit="handleUpload(event)" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="space-y-4 md:col-span-1">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Publication Title</label>
+                        <input type="text" id="uploadTitle" required placeholder="e.g., Spring Catalog 2026" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Tags (comma separated)</label>
+                        <input type="text" id="uploadTags" placeholder="catalog, fiction, 2026" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition">
+                    </div>
+                </div>
+
+                <div class="md:col-span-2 flex flex-col justify-between">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Select File (PDF or Image)</label>
+                        <div class="border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-2xl p-6 text-center bg-slate-50 transition cursor-pointer relative" onclick="document.getElementById('fileInput').click()">
+                            <input type="file" id="fileInput" required accept=".pdf,image/*" onchange="previewFileSelected(this)" class="hidden">
+                            <div id="dropZoneContent">
+                                <i class="fa-solid fa-file-arrow-up text-3xl text-blue-600 mb-2"></i>
+                                <p class="text-sm font-medium text-slate-700" id="selectedFileName">Click to browse or drop file here</p>
+                                <p class="text-xs text-slate-400 mt-1">Accepts PDF documents and high-res images (PNG, JPG, WEBP)</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end mt-4">
+                        <button type="submit" id="uploadBtn" class="px-6 py-3 bg-gradient-to-r from-blue-700 to-indigo-800 hover:from-blue-800 hover:to-indigo-900 text-white font-semibold rounded-xl text-sm shadow-md shadow-blue-200 transition flex items-center space-x-2">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                            <span>Publish Coast-to-Coast</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Resources Section Header -->
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center space-x-2">
+                <h3 class="text-xl font-bold text-slate-900" id="sectionTitle">All Publications</h3>
+                <span id="resourceCount" class="px-2.5 py-0.5 bg-slate-200 text-slate-700 rounded-full text-xs font-bold">0</span>
+            </div>
+            <div class="text-xs text-emerald-600 font-semibold flex items-center space-x-1">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                <span>Realtime cloud sync active</span>
+            </div>
+        </div>
+
+        <!-- Resources Grid -->
+        <div id="resourcesGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Dynamically populated resource cards -->
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="hidden text-center py-16 bg-white rounded-3xl border border-slate-200 shadow-xs mt-4">
+            <div class="w-16 h-16 bg-slate-100 text-slate-400 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl">
+                <i class="fa-solid fa-books"></i>
+            </div>
+            <h4 class="text-base font-bold text-slate-800 mb-1">No publications found</h4>
+            <p class="text-slate-500 text-sm max-w-sm mx-auto mb-6">There are no publications or media files matching your criteria at this time.</p>
+            <button onclick="resetFilter()" class="px-4 py-2 bg-blue-50 text-blue-700 font-semibold rounded-xl text-sm hover:bg-blue-100 transition">Clear Filters</button>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 mt-16 py-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500">
+            <p>&copy; 2026 OPK Publishing Co. All rights reserved.</p>
+            <div class="flex items-center space-x-4 mt-4 sm:mt-0">
+                <span class="flex items-center space-x-1 text-emerald-600 font-medium">
+                    <i class="fa-solid fa-earth-americas"></i>
+                    <span>Coast-to-Coast Realtime Sync Enabled</span>
+                </span>
+                <span>&bull;</span>
+                <span class="text-slate-400">Secure Blue Key Authentication</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Application Script -->
+    <script>
+        let isOwner = false;
+        let allResources = [];
+        let currentFilter = 'all';
+        let currentSearchQuery = '';
+        let isUploading = false;
+
+        const OWNER_SECRET_CODE = "31816"; 
+        const STORAGE_KEY = 'opk_persistent_resources_v8';
+        const channel = new BroadcastChannel('opk_publishing_sync_channel_v8');
+
+        // Zero-configuration public cloud JSON relay endpoint for coast-to-coast real-time sync
+        const CLOUD_RELAY_URL = 'https://api.npoint.io/opk_publishing_co_shared_2026';
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            if (sessionStorage.getItem('opk_owner_auth') === 'true') {
+                isOwner = true;
+            }
+
+            // Initial load from cloud relay + localStorage fallback
+            await fetchCloudResources();
+
+            window.addEventListener('storage', (event) => {
+                if (event.key === STORAGE_KEY) {
+                    loadResourcesFromStorage();
+                    renderResources();
+                }
+            });
+
+            channel.onmessage = (event) => {
+                if (event.data && event.data.type === 'SYNC_UPDATE') {
+                    allResources = deduplicateResources(event.data.resources || []);
+                    renderResources();
+                }
+            };
+
+            // High-speed cloud polling heartbeat (every 2 seconds) for seamless coast-to-coast sync
+            setInterval(() => {
+                fetchCloudResources(true);
+            }, 2000);
+
+            updateAuthUI();
+        });
+
+        async function fetchCloudResources(isBackground = false) {
+            try {
+                const response = await fetch(CLOUD_RELAY_URL, { cache: 'no-store' });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (Array.isArray(data) && data.length > 0) {
+                        const deduped = deduplicateResources(data);
+                        if (deduped.length > 0 && JSON.stringify(deduped) !== JSON.stringify(allResources)) {
+                            allResources = deduped;
+                            localStorage.setItem(STORAGE_KEY, JSON.stringify(allResources));
+                            renderResources();
+                        }
+                        return;
+                    }
+                }
+            } catch (e) {
+                // Fallback to local storage if offline or relay is unreachable
+            }
+            if (!isBackground) {
+                loadResourcesFromStorage();
+            }
+        }
+
+        async function pushCloudResources(resources) {
+            try {
+                await fetch(CLOUD_RELAY_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(resources)
+                });
+            } catch (e) {
+                console.error("Cloud relay push error:", e);
+            }
+        }
+
+        function loadResourcesFromStorage() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        allResources = deduplicateResources(parsed);
+                    } else {
+                        loadSampleData();
+                    }
+                } else {
+                    loadSampleData();
+                }
+            } catch (e) {
+                loadSampleData();
+            }
+            renderResources();
+        }
+
+        function saveResourcesToStorage() {
+            try {
+                allResources = deduplicateResources(allResources);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(allResources));
+                channel.postMessage({ type: 'SYNC_UPDATE', resources: allResources });
+                pushCloudResources(allResources);
+            } catch (e) {
+                console.error("Storage error:", e);
+            }
+        }
+
+        function deduplicateResources(resources) {
+            const seenIds = new Set();
+            const seenSignatures = new Set();
+            const unique = [];
+
+            for (const item of resources) {
+                if (!item || !item.id) continue;
+                if (seenIds.has(item.id)) continue;
+
+                const sig = `${(item.title || '').trim().toLowerCase()}_${(item.fileName || '').trim().toLowerCase()}`;
+                if (seenSignatures.has(sig)) continue;
+
+                seenIds.add(item.id);
+                seenSignatures.add(sig);
+                unique.push(item);
+            }
+            return unique;
+        }
+
+        function loadSampleData() {
+            allResources = [
+                {
+                    id: 'sample-1',
+                    title: 'OPK Spring Catalog 2026',
+                    type: 'pdf',
+                    tags: ['catalog', '2026', 'releases'],
+                    fileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+                    fileName: 'OPK_Spring_Catalog_2026.pdf',
+                    fileSize: '1.2 MB',
+                    createdAt: Date.now() - 3600000 * 5
+                },
+                {
+                    id: 'sample-2',
+                    title: 'Author Press Kit & Media Cover',
+                    type: 'image',
+                    tags: ['press', 'media', 'branding'],
+                    fileUrl: 'https://placehold.co/800x600/1e293b/ffffff?text=OPK+Press+Kit+Cover',
+                    fileName: 'OPK_Press_Kit_Cover.png',
+                    fileSize: '950 KB',
+                    createdAt: Date.now() - 3600000 * 24
+                }
+            ];
+            saveResourcesToStorage();
+        }
+
+        window.updateAuthUI = function() {
+            const authNavArea = document.getElementById('authNavArea');
+            const ownerUploadPanel = document.getElementById('ownerUploadPanel');
+            const roleBadge = document.getElementById('roleBadge');
+
+            if (isOwner) {
+                authNavArea.innerHTML = `
+                    <div class="flex items-center space-x-3">
+                        <span class="hidden md:inline-flex items-center px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-semibold border border-blue-200">
+                            <i class="fa-solid fa-shield-halved mr-1.5"></i> Owner Mode Active
+                        </span>
+                        <button onclick="logoutOwner()" class="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition text-xs font-medium flex items-center space-x-2" title="Exit Owner Mode">
+                            <i class="fa-solid fa-right-from-bracket"></i>
+                            <span class="hidden sm:inline">Logout</span>
+                        </button>
+                    </div>
+                `;
+                ownerUploadPanel.classList.remove('hidden');
+                roleBadge.innerText = "Publisher Control Center";
+                roleBadge.className = "inline-block px-3 py-1 bg-blue-500/20 backdrop-blur-md rounded-full text-xs font-semibold uppercase tracking-wider text-blue-200 mb-3 border border-blue-400/30";
+            } else {
+                authNavArea.innerHTML = `
+                    <button onclick="openLoginModal()" class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-blue-200 flex items-center justify-center transition transform hover:scale-105 active:scale-95 cursor-pointer" title="Secure Blue Key Owner Login">
+                        <i class="fa-solid fa-key text-sm"></i>
+                    </button>
+                `;
+                ownerUploadPanel.classList.add('hidden');
+                roleBadge.innerText = "Public Visitor Library";
+                roleBadge.className = "inline-block px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-semibold uppercase tracking-wider text-blue-200 mb-3 border border-white/10";
+            }
+            renderResources();
+        }
+
+        window.openLoginModal = function() {
+            if (isOwner) return;
+            showModal({
+                title: "Owner Authentication",
+                icon: "fa-key",
+                iconBg: "bg-blue-100 text-blue-700",
+                message: "Enter the secure owner password (31816) to unlock publisher management and file uploading.",
+                content: `
+                    <div class="space-y-3">
+                        <input type="password" id="ownerPassInput" onkeydown="if(event.key==='Enter') verifyOwnerPassword()" placeholder="Enter password (31816)" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600">
+                    </div>
+                `,
+                buttons: `
+                    <button onclick="closeModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-xs transition">Cancel</button>
+                    <button onclick="verifyOwnerPassword()" class="px-5 py-2 bg-blue-700 hover:bg-blue-800 text-white font-medium rounded-xl text-xs transition">Authenticate</button>
+                `
+            });
+            setTimeout(() => {
+                const input = document.getElementById('ownerPassInput');
+                if (input) input.focus();
+            }, 100);
+        }
+
+        window.verifyOwnerPassword = function() {
+            const inputEl = document.getElementById('ownerPassInput');
+            const val = inputEl ? inputEl.value : '';
+            if (val === OWNER_SECRET_CODE) {
+                isOwner = true;
+                sessionStorage.setItem('opk_owner_auth', 'true');
+                closeModal();
+                updateAuthUI();
+                showNotification("Success", "Owner authenticated successfully! Publisher console unlocked.", "fa-check", "bg-emerald-100 text-emerald-700");
+            } else {
+                showNotification("Authentication Failed", "Incorrect password entered. Please try again.", "fa-triangle-exclamation", "bg-rose-100 text-rose-700");
+            }
+        }
+
+        window.logoutOwner = function() {
+            isOwner = false;
+            sessionStorage.removeItem('opk_owner_auth');
+            updateAuthUI();
+            showNotification("Logged Out", "You have successfully exited publisher owner mode.", "fa-info", "bg-slate-100 text-slate-700");
+        }
+
+        window.previewFileSelected = function(input) {
+            if (input.files && input.files[0]) {
+                const file = input.files[0];
+                document.getElementById('selectedFileName').innerText = `${file.name} (${formatBytes(file.size)})`;
+                
+                const titleInput = document.getElementById('uploadTitle');
+                if (!titleInput.value) {
+                    let cleanName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+                    cleanName = cleanName.replace(/[-_]/g, ' ');
+                    titleInput.value = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
+                }
+            }
+        }
+
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+
+        window.handleUpload = async function(event) {
+            event.preventDefault();
+            if (isUploading) return;
+            
+            if (!isOwner) {
+                showNotification("Access Denied", "Only the verified owner can upload publications.", "fa-ban", "bg-rose-100 text-rose-700");
+                return;
+            }
+
+            const titleInput = document.getElementById('uploadTitle');
+            const tagsInput = document.getElementById('uploadTags');
+            const fileInput = document.getElementById('fileInput');
+
+            const title = titleInput.value.trim();
+            const tagsRaw = tagsInput.value.trim();
+
+            if (!fileInput.files || !fileInput.files[0]) {
+                showNotification("Missing File", "Please select a PDF or image file to upload.", "fa-triangle-exclamation", "bg-amber-100 text-amber-700");
+                return;
+            }
+
+            const file = fileInput.files[0];
+
+            isUploading = true;
+            const uploadBtn = document.getElementById('uploadBtn');
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i><span>Publishing Coast-to-Coast...</span>`;
+
+            try {
+                const fileUrl = await fileToBase64(file);
+                const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+                const fileType = isPdf ? 'pdf' : 'image';
+                const tags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(Boolean) : [fileType];
+
+                const resourceId = 'res-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+                const resourceData = {
+                    id: resourceId,
+                    title,
+                    type: fileType,
+                    tags,
+                    fileUrl,
+                    fileName: file.name,
+                    fileSize: formatBytes(file.size),
+                    createdAt: Date.now()
+                };
+
+                allResources.unshift(resourceData);
+                saveResourcesToStorage();
+                renderResources();
+
+                document.getElementById('uploadForm').reset();
+                document.getElementById('selectedFileName').innerText = "Click to browse or drop file here";
+                
+                showNotification("Published Successfully", `"${title}" has been published and synced coast-to-coast in real time!`, "fa-check", "bg-emerald-100 text-emerald-700");
+
+            } catch (err) {
+                console.error("Upload error:", err);
+                showNotification("Upload Error", err.message || "Failed to process file. Please try again.", "fa-triangle-exclamation", "bg-rose-100 text-rose-700");
+            } finally {
+                isUploading = false;
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i><span>Publish Coast-to-Coast</span>`;
+            }
+        }
+
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = (e) => reject(e);
+                reader.readAsDataURL(file);
+            });
+        }
+
+        window.deleteResource = function(id, title) {
+            if (!isOwner) {
+                showNotification("Access Denied", "Only the verified owner can delete publications.", "fa-ban", "bg-rose-100 text-rose-700");
+                return;
+            }
+
+            showModal({
+                title: "Confirm Deletion",
+                icon: "fa-trash-can",
+                iconBg: "bg-rose-100 text-rose-700",
+                message: `Are you sure you want to delete "${title}"? This will permanently remove it across all devices.`,
+                buttons: `
+                    <button onclick="closeModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-xs transition">Cancel</button>
+                    <button onclick="confirmDelete('${id}')" class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-xl text-xs transition">Delete Publication</button>
+                `
+            });
+        }
+
+        window.confirmDelete = function(id) {
+            closeModal();
+            allResources = allResources.filter(r => r.id !== id);
+            saveResourcesToStorage();
+            renderResources();
+            showNotification("Publication Removed", "The publication has been deleted permanently across all devices.", "fa-check", "bg-emerald-100 text-emerald-700");
+        }
+
+        window.setCategoryFilter = function(cat) {
+            currentFilter = cat;
+            ['all', 'pdf', 'image'].forEach(c => {
+                const btn = document.getElementById(`cat-${c}`);
+                if (c === cat) {
+                    btn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/20 text-white transition";
+                } else {
+                    btn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white transition";
+                }
+            });
+            renderResources();
+        }
+
+        window.filterResources = function() {
+            currentSearchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
+            renderResources();
+        }
+
+        window.resetFilter = function() {
+            currentFilter = 'all';
+            currentSearchQuery = '';
+            document.getElementById('searchInput').value = '';
+            setCategoryFilter('all');
+        }
+
+        function renderResources() {
+            const grid = document.getElementById('resourcesGrid');
+            const emptyState = document.getElementById('emptyState');
+            const resourceCount = document.getElementById('resourceCount');
+            const sectionTitle = document.getElementById('sectionTitle');
+
+            const uniqueList = deduplicateResources(allResources);
+
+            let filtered = uniqueList.filter(item => {
+                const matchesCat = currentFilter === 'all' || item.type === currentFilter;
+                const matchesSearch = !currentSearchQuery || 
+                    item.title.toLowerCase().includes(currentSearchQuery) || 
+                    (item.tags && item.tags.some(t => t.toLowerCase().includes(currentSearchQuery)));
+                return matchesCat && matchesSearch;
+            });
+
+            resourceCount.innerText = filtered.length;
+            sectionTitle.innerText = currentFilter === 'all' ? 'All Publications' : (currentFilter === 'pdf' ? 'PDF Documents' : 'Media Images');
+
+            if (filtered.length === 0) {
+                grid.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            grid.innerHTML = filtered.map(item => {
+                const isPdf = item.type === 'pdf';
+                const dateStr = new Date(item.createdAt || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                
+                let previewHtml = '';
+                if (isPdf) {
+                    previewHtml = `
+                        <div class="w-full h-48 bg-slate-100 flex flex-col items-center justify-center relative overflow-hidden group">
+                            <div class="absolute inset-0 bg-gradient-to-t from-slate-900/40 to-transparent opacity-0 group-hover:opacity-100 transition flex items-end p-4">
+                                <span class="text-xs text-white font-medium bg-slate-900/70 px-2.5 py-1 rounded-lg backdrop-blur-sm">PDF Publication</span>
+                            </div>
+                            <div class="w-14 h-14 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center text-2xl shadow-sm mb-2 group-hover:scale-110 transition duration-300">
+                                <i class="fa-solid fa-file-pdf"></i>
+                            </div>
+                            <span class="text-xs font-semibold text-slate-700 px-4 truncate max-w-full">${item.fileName || 'Document.pdf'}</span>
+                            <span class="text-[11px] text-slate-400 mt-0.5">${item.fileSize || 'PDF'}</span>
+                        </div>
+                    `;
+                } else {
+                    previewHtml = `
+                        <div class="w-full h-48 bg-slate-100 overflow-hidden relative group">
+                            <img src="${item.fileUrl}" alt="${item.title}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500" onerror="this.src='https://placehold.co/600x400/e2e8f0/64748b?text=Preview'">
+                            <div class="absolute inset-0 bg-gradient-to-t from-slate-900/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition flex items-end p-4">
+                                <span class="text-xs text-white font-medium bg-slate-900/70 px-2.5 py-1 rounded-lg backdrop-blur-sm">High-Res Media</span>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                const tagsHtml = item.tags ? item.tags.map(t => `<span class="px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md text-[11px] font-medium">#${t}</span>`).join('') : '';
+
+                const deleteButtonHtml = isOwner ? `
+                    <button onclick="deleteResource('${item.id}', '${item.title.replace(/'/g, "\\'")}')" class="p-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition text-xs font-medium flex items-center justify-center" title="Delete Publication">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                ` : '';
+
+                return `
+                    <div class="bg-white rounded-3xl border border-slate-200 shadow-xs hover:shadow-md transition duration-300 overflow-hidden flex flex-col justify-between animate-fade">
+                        <div>
+                            ${previewHtml}
+                            <div class="p-5">
+                                <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
+                                    <span class="uppercase tracking-wider font-semibold text-[10px] px-2 py-0.5 rounded ${isPdf ? 'bg-blue-50 text-blue-700' : 'bg-indigo-50 text-indigo-700'}">${item.type}</span>
+                                    <span>${dateStr}</span>
+                                </div>
+                                <h4 class="font-bold text-slate-900 text-base mb-2 line-clamp-1" title="${item.title}">${item.title}</h4>
+                                <div class="flex flex-wrap gap-1.5 mb-4">
+                                    ${tagsHtml}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="px-5 pb-5 pt-0 flex items-center space-x-2">
+                            <a href="${item.fileUrl}" download="${item.fileName || 'download'}" target="_blank" class="flex-grow py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded-xl text-xs transition flex items-center justify-center space-x-2 shadow-sm">
+                                <i class="fa-solid fa-download"></i>
+                                <span>Download</span>
+                            </a>
+                            ${deleteButtonHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        window.showModal = function({ title, icon, iconBg, message, content = '', buttons = '' }) {
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalMessage').innerText = message;
+            document.getElementById('modalIcon').className = `fa-solid ${icon}`;
+            document.getElementById('modalIconContainer').className = `w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-xl ${iconBg}`;
+            document.getElementById('modalContentContainer').innerHTML = content;
+            document.getElementById('modalButtons').innerHTML = buttons;
+            document.getElementById('customModal').classList.remove('hidden');
+        }
+
+        window.closeModal = function() {
+            document.getElementById('customModal').classList.add('hidden');
+        }
+
+        window.showNotification = function(title, message, icon, iconBg) {
+            showModal({
+                title,
+                icon,
+                iconBg,
+                message,
+                buttons: `<button onclick="closeModal()" class="px-5 py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-medium rounded-xl text-xs transition">OK</button>`
+            });
+        }
+    </script>
+</body>
+</html>
